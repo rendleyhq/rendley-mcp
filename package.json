@@ -1,7 +1,12 @@
 {
   "name": "mcp.rendley.com",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rendleyhq/rendley-mcp"
+  },
+  "description": "Create videos with prompts, and use Rendley’s video editor to adjust anything you need.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

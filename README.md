@@ -79,8 +79,8 @@ This repo is the MCP server only; it does not run the full Rendley stack locally
 ### Run locally
 
 ```bash
-git clone https://github.com/rendleyhq/mcp.rendley.com.git
-cd mcp.rendley.com
+git clone https://github.com/rendleyhq/rendley-mcp.git
+cd rendley-mcp
 
 bun install
 bun dev                       # http://localhost:8787
