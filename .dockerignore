@@ -1,0 +1,17 @@
+# Keep the build context small and secret-free. The Dockerfile installs deps
+# from package-lock.json and compiles src itself, so none of these are needed
+# in the image — and shipping them just slows every server build.
+node_modules
+dist
+.git
+.gitignore
+
+# Local-only: secrets, the browser user-data dir, editor/agent cruft.
+.env
+.env.*
+temp
+.claude
+.vscode
+.idea
+.DS_Store
+*.log

@@ -1,0 +1,205 @@
+# Rendley MCP
+
+The [MCP](https://modelcontextprotocol.io) server for [Rendley](https://rendley.com). It gives an AI assistant a full video editor: connect it once, then create and edit video by describing what you want, in the same chat you already work in. Under the hood it drives the hosted Rendley editor in a browser and calls the hosted Rendley API on your behalf:
+
+- Editor: `https://app.rendley.com`
+- API: `https://api.rendley.com/v1`
+
+The same agent is also reachable over plain HTTP (`POST /v1/agent`) for backends that don't speak MCP. See [REST example](#rest-example).
+
+There are two ways to use it:
+
+1. **Use the hosted server** at `https://mcp.rendley.com/mcp`. Nothing to run. See [Connect a client](#connect-a-client).
+2. **Self-host this server** against the hosted Rendley API. See [Self-host the server](#self-host-the-server).
+
+📖 **Full documentation, with step-by-step setup guides and screenshots: [docs.rendley.com/mcp](https://docs.rendley.com/mcp)**
+
+---
+
+## Connect a client
+
+Any client that speaks remote MCP can connect. Point it at the endpoint and authenticate by signing in or with an API key:
+
+```
+https://mcp.rendley.com/mcp
+```
+
+- **Sign in with Rendley** (recommended): the client opens a Rendley sign-in tab and you approve access. Nothing to copy, and you can revoke it later.
+- **API key**: the client sends an `Authorization: Bearer YOUR_RENDLEY_API_KEY` header. Create one at [Settings → API Keys](https://app.rendley.com/settings); see [Get an API key](https://docs.rendley.com/mcp/authentication#get-an-api-key).
+
+Most clients accept a JSON config like this:
+
+```json
+{
+  "mcpServers": {
+    "rendley": {
+      "url": "https://mcp.rendley.com/mcp",
+      "headers": { "Authorization": "Bearer YOUR_RENDLEY_API_KEY" }
+    }
+  }
+}
+```
+
+For sign-in, drop the `headers` block and let the client run the browser flow.
+
+The docs have illustrated, per-client walkthroughs:
+
+- **[Claude](https://docs.rendley.com/mcp/claude)**: desktop, web, and Claude Code.
+- **[Codex](https://docs.rendley.com/mcp/openai)**: the Codex desktop app and CLI.
+- **[Other clients](https://docs.rendley.com/mcp/other-clients)**: any other client that speaks remote MCP, plus the `mcp-remote` bridge for local-only clients.
+
+For Claude Code specifically:
+
+```bash
+claude mcp add --transport http rendley https://mcp.rendley.com/mcp \
+  --header "Authorization: Bearer YOUR_RENDLEY_API_KEY"
+```
+
+### Try it
+
+Ask the client what it can do, then try a simple request:
+
+> What can Rendley do here?
+
+> List my projects.
+
+If it lists the Rendley tools and your projects, you're connected. From there, describe the video you want and the assistant creates a project, builds the edit, and returns a link.
+
+---
+
+## Self-host the server
+
+This repo is the MCP server only; it does not run the full Rendley stack locally. It talks to the hosted Rendley API and editor. When you self-host, point clients at your own `https://<host>/mcp` instead of `https://mcp.rendley.com/mcp`.
+
+### Requirements
+
+- [Bun](https://bun.sh) `>= 1.1` (or Docker)
+- A Rendley account to connect with. Clients authenticate per request with their own API key ([Settings → API Keys](https://app.rendley.com/settings), [guide](https://docs.rendley.com/mcp/authentication#get-an-api-key)) or OAuth sign-in. The server stores no key of its own.
+
+### Run locally
+
+```bash
+git clone https://github.com/rendleyhq/mcp.rendley.com.git
+cd mcp.rendley.com
+
+bun install
+bun dev                       # http://localhost:8787
+```
+
+`API_BASE_URL` and `APP_BASE_URL` default to the hosted Rendley API and editor, so the server boots out of the box with no `.env` at all; copy `.env.example` only to point at a different stack. The server holds no credentials of its own: every request authenticates with the caller's own API key or OAuth token.
+
+By default the server drives the editor with a **local Chrome** (`BROWSER_MODE=local`), so no extra infrastructure is needed. `bun install` downloads a bundled Chromium; with `USE_CHROME_CHANNEL=true` it prefers your installed Google Chrome and falls back to the bundled browser. Set `HEADLESS=false` to watch the editor in a visible window, and `CPU_ONLY=true` on machines without a usable GPU.
+
+Verify it's up:
+
+```bash
+curl http://localhost:8787/health
+# {"status":"ok","browser_mode":"local"}
+```
+
+### Docker
+
+```bash
+docker compose up -d --build
+curl http://localhost:8787/health
+```
+
+### Connecting a client to your instance
+
+Use the same client steps as the [hosted server](#connect-a-client), but swap the endpoint for your host (e.g. `http://localhost:8787/mcp`) and authenticate with your API key as a bearer token:
+
+```json
+{
+  "mcpServers": {
+    "rendley": {
+      "url": "http://localhost:8787/mcp",
+      "headers": { "Authorization": "Bearer YOUR_RENDLEY_API_KEY" }
+    }
+  }
+}
+```
+
+**OAuth.** OAuth sign-in is always on. Clients that support it (Claude connectors, ChatGPT, `codex mcp login rendley`) can sign in via the hosted login flow instead of pasting a key; the server advertises the authorization server through RFC 9728 protected-resource metadata. Set `MCP_PUBLIC_URL` to this server's public URL so discovery points at the right host.
+
+### Remote browser mode
+
+For hosted deployments, set `BROWSER_MODE=remote` and point the server at a deployed [agent-browser-cloudflare](https://github.com/rendleyhq) worker. The server mints a short-lived editor session token and posts it to the worker, so the caller's credential never leaves this process:
+
+```bash
+BROWSER_MODE=remote
+BROWSER_WORKER_URL=https://agent-browser-cloudflare.<your-subdomain>.workers.dev
+BROWSER_WORKER_TOKEN=<must match the worker's secret>
+```
+
+---
+
+## Configuration
+
+All configuration is via environment variables; start from [`.env.example`](./.env.example), which documents every option. The essentials:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `API_BASE_URL` | `https://api.rendley.com/v1` | Rendley API root. Override for staging or a self-hosted stack. |
+| `APP_BASE_URL` | `https://app.rendley.com` | Rendley editor root. Override for staging or a self-hosted stack. |
+| `MCP_PUBLIC_URL` | none | This server's public URL, advertised for OAuth discovery. |
+| `BROWSER_MODE` | `local` | `local` = in-process Playwright Chrome; `remote` = Cloudflare browser worker. |
+| `HEADLESS` | `true` | Local mode only; `false` shows the browser window. |
+| `USE_CHROME_CHANNEL` | `true` | Local mode only; prefer installed Chrome over bundled Chromium. |
+| `CPU_ONLY` | `false` | Force software WebGL (SwiftShader) on hosts without a GPU. |
+| `QUEUE_CONCURRENCY` | `120` | Max concurrent browser-backed jobs per container. |
+| `CORS_ORIGINS` | none | CSV allowlist of browser origins. Empty disables CORS. |
+
+## Endpoints
+
+| Method | Path | |
+| --- | --- | --- |
+| `POST` | `/mcp` | MCP Streamable HTTP transport |
+| `POST` | `/v1/agent` | Start an async edit job |
+| `GET` | `/v1/jobs/:id` | Poll a job |
+| `POST` | `/v1/brandkit/assets` | Upload a brand asset from a URL |
+| `GET` | `/health` | Liveness |
+| `GET` | `/health/details` | Authenticated operator health |
+
+## REST example
+
+You don't need an MCP client to drive the agent. The same agent is available over plain HTTP. Start a job, get an id back, and poll until the video is ready. Full reference: [docs.rendley.com/mcp/api-access](https://docs.rendley.com/mcp/api-access).
+
+```bash
+# Start a job (swap in http://localhost:8787 for a self-hosted instance)
+curl -X POST https://mcp.rendley.com/v1/agent \
+  -H "Authorization: Bearer $RENDLEY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Create a 9:16 slideshow from these files",
+    "files": [
+      { "url": "https://cdn.example.com/photo1.jpg" },
+      { "url": "https://cdn.example.com/photo2.jpg" }
+    ]
+  }'
+
+# Poll it
+curl -H "Authorization: Bearer $RENDLEY_API_KEY" \
+  https://mcp.rendley.com/v1/jobs/<job_id>
+```
+
+## Runtime notes
+
+- Single tenant per instance.
+- The browser launches lazily on the first browser-backed request; concurrent requests reuse it via separate tabs, which close on completion.
+- Media attachments are public URLs only. The editor imports them via the batch upload API (no local-file uploads through MCP).
+- REST jobs are asynchronous and must be polled. Job state is held in memory: completed records are retained for 1 hour, and a restart drops all job state (in-flight jobs are lost, finished results become unfetchable).
+- `/health` is healthy whenever the server can serve; browser launch failures surface on browser-backed requests.
+
+## Scripts
+
+```bash
+bun dev          # watch mode, pretty logs
+bun start        # production start
+bun run typecheck
+```
+
+## License
+
+Proprietary. © Rendley.
+</content>
+</invoke>

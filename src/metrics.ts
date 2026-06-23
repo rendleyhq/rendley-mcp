@@ -1,0 +1,40 @@
+import { metrics } from "@opentelemetry/api";
+import { getQueueStats } from "@/queue";
+
+const meter = metrics.getMeter("rendley-mcp");
+
+const running = meter.createObservableGauge("mcp.queue.running", {
+  description: "Agent runs currently executing (browser slots in use).",
+});
+const queued = meter.createObservableGauge("mcp.queue.queued", {
+  description: "Agent runs waiting for a browser slot.",
+});
+running.addCallback((r) => r.observe(getQueueStats().running));
+queued.addCallback((r) => r.observe(getQueueStats().queued));
+
+const concurrencyRejectedCounter = meter.createCounter(
+  "mcp.concurrency.rejected",
+  { description: "Requests rejected by the per-tenant/end-user concurrency cap." },
+);
+const queueFullRejectedCounter = meter.createCounter("mcp.queue.full_rejected", {
+  description: "Requests rejected because the queue hit its DoS ceiling.",
+});
+const rateLimitedCounter = meter.createCounter("mcp.rate_limited", {
+  description: "Requests rejected by the per-API-key rate limiter.",
+});
+const planDowngradeCounter = meter.createCounter("mcp.plan_cap.downgraded", {
+  description: "Plan-cap resolutions that fell back to the free tier on API error.",
+});
+
+export function recordConcurrencyRejected(): void {
+  concurrencyRejectedCounter.add(1);
+}
+export function recordQueueFullRejected(): void {
+  queueFullRejectedCounter.add(1);
+}
+export function recordRateLimited(): void {
+  rateLimitedCounter.add(1);
+}
+export function recordPlanDowngrade(): void {
+  planDowngradeCounter.add(1);
+}
