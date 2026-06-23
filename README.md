@@ -123,11 +123,11 @@ Use the same client steps as the [hosted server](#connect-a-client), but swap th
 
 ### Remote browser mode
 
-For hosted deployments, set `BROWSER_MODE=remote` and point the server at a deployed [agent-browser-cloudflare](https://github.com/rendleyhq) worker. The server mints a short-lived editor session token and posts it to the worker, so the caller's credential never leaves this process:
+For hosted deployments, set `BROWSER_MODE=remote` and point the server at a deployed remote browser worker. The server mints a short-lived editor session token and posts it to the worker, so the caller's credential never leaves this process:
 
 ```bash
 BROWSER_MODE=remote
-BROWSER_WORKER_URL=https://agent-browser-cloudflare.<your-subdomain>.workers.dev
+BROWSER_WORKER_URL=https://<your-browser-worker-host>
 BROWSER_WORKER_TOKEN=<must match the worker's secret>
 ```
 
@@ -142,7 +142,7 @@ All configuration is via environment variables; start from [`.env.example`](./.e
 | `API_BASE_URL` | `https://api.rendley.com/v1` | Rendley API root. Override for staging or a self-hosted stack. |
 | `APP_BASE_URL` | `https://app.rendley.com` | Rendley editor root. Override for staging or a self-hosted stack. |
 | `MCP_PUBLIC_URL` | none | This server's public URL, advertised for OAuth discovery. |
-| `BROWSER_MODE` | `local` | `local` = in-process Playwright Chrome; `remote` = Cloudflare browser worker. |
+| `BROWSER_MODE` | `local` | `local` = in-process Playwright Chrome; `remote` = remote browser worker. |
 | `HEADLESS` | `true` | Local mode only; `false` shows the browser window. |
 | `USE_CHROME_CHANNEL` | `true` | Local mode only; prefer installed Chrome over bundled Chromium. |
 | `CPU_ONLY` | `false` | Force software WebGL (SwiftShader) on hosts without a GPU. |
@@ -156,9 +156,7 @@ All configuration is via environment variables; start from [`.env.example`](./.e
 | `POST` | `/mcp` | MCP Streamable HTTP transport |
 | `POST` | `/v1/agent` | Start an async edit job |
 | `GET` | `/v1/jobs/:id` | Poll a job |
-| `POST` | `/v1/brandkit/assets` | Upload a brand asset from a URL |
 | `GET` | `/health` | Liveness |
-| `GET` | `/health/details` | Authenticated operator health |
 
 ## REST example
 
@@ -200,6 +198,6 @@ bun run typecheck
 
 ## License
 
-Proprietary. © Rendley.
+[Apache License 2.0](./LICENSE). © 2026 Rendley.
 </content>
 </invoke>
